@@ -1,0 +1,70 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>OMNIA Admin</title>
+<style>
+:root{--bg:#07070f;--p:#12121f;--b:#25253a;--t:#f0eeff;--m:#8e8cab;--a:#8b7bff;--g:linear-gradient(135deg,#8b7bff,#d16bff 55%,#ffb86b)}
+*{box-sizing:border-box;margin:0}body{font:14px/1.5 system-ui,sans-serif;background:var(--bg);color:var(--t);min-height:100dvh}
+body:before{content:"";position:fixed;inset:0;z-index:-1;background:radial-gradient(40% 40% at 15% 5%,#8b7bff30,transparent),radial-gradient(35% 35% at 90% 95%,#ffb86b22,transparent)}
+button,input,select,textarea{font:inherit;color:inherit}button{cursor:pointer;border:1px solid var(--b);background:var(--p);border-radius:10px;padding:6px 12px}button:hover{border-color:var(--a)}
+input,select,textarea{width:100%;background:var(--bg);border:1px solid var(--b);border-radius:10px;padding:9px;margin:4px 0 8px}input[type=checkbox]{width:auto;margin-right:8px}
+.p,#go{background:var(--g);border:0;color:#fff;font-weight:700;padding:11px 20px;border-radius:99px}
+#lg{min-height:100dvh;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;padding:20px}#lg input{max-width:300px;text-align:center}#le{color:#ff8791}
+header{display:flex;gap:10px;align-items:center;padding:12px 16px;border-bottom:1px solid var(--b);position:sticky;top:0;background:#07070fcc;backdrop-filter:blur(12px);z-index:2}header b{flex:1;font-size:17px}#live{color:#4ade80}
+#tabs{display:flex;gap:6px;padding:12px 16px;overflow:auto}#tabs button.on{background:var(--g);border:0;color:#fff}
+#mn{padding:0 16px 40px;display:grid;gap:14px;max-width:960px;margin:auto}
+.c{background:var(--p);border:1px solid var(--b);border-radius:16px;padding:16px}.c h3{margin-bottom:8px}
+.g{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:12px}.k small{color:var(--m)}.k b{display:block;font-size:30px}
+.r{display:flex;justify-content:space-between;gap:10px;align-items:center;padding:8px 0;border-bottom:1px solid var(--b)}.r small,small{color:var(--m)}
+.ab{display:flex;gap:6px;flex-wrap:wrap}.tag{background:#ff5d6c;color:#fff;border-radius:99px;padding:1px 8px;font-size:11px}
+.bar{display:flex;align-items:center;gap:8px;margin:5px 0;position:relative}.bar span{width:90px;color:var(--m)}.bar i{height:10px;border-radius:9px;background:var(--g);min-width:4px}
+.cols{display:flex;gap:8px;align-items:flex-end;height:120px}.cols i{flex:1;background:var(--g);border-radius:8px 8px 0 0;position:relative;min-height:4px}.cols em{position:absolute;top:-18px;width:100%;text-align:center;font-size:11px;font-style:normal;color:var(--m)}
+.f{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:8px}.f input,.f select{width:auto;flex:1;margin:0}label{display:block;padding:4px 0}
+#toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:var(--g);padding:10px 20px;border-radius:99px;font-weight:700;opacity:0;transition:.3s;pointer-events:none}#toast.on{opacity:1}
+[hidden]{display:none!important}
+</style></head><body>
+<div id="lg"><h1>OMNIA Admin</h1><input id="pw" type="password" placeholder="Admin password"><button id="go">Enter</button><small id="le"></small></div>
+<div id="ap" hidden><header><b>OMNIA Admin</b><span id="live"></span><button id="rf">Refresh</button><button id="out">Logout</button></header><nav id="tabs"></nav><div id="mn"></div></div>
+<div id="toast"></div>
+<script>
+const $=s=>$d.querySelector(s),$d=document,esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+let T=sessionStorage.at,tab='ov',tm,F={q:'',mode:'',uid:''};
+const A=async(p,b)=>{const r=await fetch('/api/admin/'+p,{method:b?'POST':'GET',headers:{'Content-Type':'application/json','x-admin':T||''},body:b&&JSON.stringify(b)});const j=await r.json().catch(()=>({}));if(!r.ok){if(r.status===403&&p!=='login')show(0);throw new Error(j.error||r.status)}return j};
+const ago=t=>{const s=(Date.now()-t)/1e3|0;return s<60?s+'s':s<3600?(s/60|0)+'m':s<86400?(s/3600|0)+'h':(s/86400|0)+'d'};
+const toast=t=>{const e=$('#toast');e.textContent=t;e.className='on';setTimeout(()=>e.className='',2000)};
+const dl=(n,t)=>{const a=$d.createElement('a');a.href=URL.createObjectURL(new Blob([t]));a.download=n;a.click()};
+const bars=(o,m)=>Object.entries(o).sort((a,b)=>b[1]-a[1]).slice(0,8).map(([k,v])=>`<div class="bar"><span>${esc(k)}</span><i style="width:${v/m*70}%"></i><b>${v}</b></div>`).join('')||'<small>No data yet</small>';
+const TABS={ov:'Overview',us:'Users',ch:'Chats',ct:'Controls',sv:'Server'};
+$('#tabs').innerHTML=Object.entries(TABS).map(([k,v])=>`<button data-t="${k}">${v}</button>`).join('');
+$('#tabs').onclick=e=>{const b=e.target.closest('button');if(b)go(b.dataset.t)};
+function show(v){$('#lg').hidden=v;$('#ap').hidden=!v;clearInterval(tm);if(v)go(tab)}
+async function go(t){tab=t;$d.querySelectorAll('#tabs button').forEach(b=>b.classList.toggle('on',b.dataset.t===t));clearInterval(tm);try{await R[t]()}catch(e){toast(e.message)}if(t==='ov')tm=setInterval(()=>R.ov().catch(()=>{}),8000)}
+const R={
+ov:async()=>{const s=await A('stats');$('#live').textContent='● '+s.active.length+' online';
+ $('#mn').innerHTML=`<div class="g">${[['Online now',s.active.length],['Total users',s.users],['Total chats',s.chats],['Chats today',s.days[6]]].map(([a,b])=>`<div class="c k"><small>${a}</small><b>${b}</b></div>`).join('')}</div>
+ <div class="c"><h3>Active users</h3>${s.active.map(a=>`<div class="r"><b>${esc(a.name)}</b><small>${a.type} · ${esc(a.loc||'?')} · ${a.dev||'?'} · ${a.mode}</small></div>`).join('')||'<small>No one online</small>'}</div>
+ <div class="c"><h3>Section usage</h3>${bars(s.by,Math.max(1,...Object.values(s.by)))}</div>
+ <div class="c"><h3>Last 7 days</h3><div class="cols">${s.days.map(d=>`<i style="height:${d/Math.max(1,...s.days)*85}%"><em>${d}</em></i>`).join('')}</div></div>
+ <div class="c"><h3>Users by country</h3>${bars(s.ctry,Math.max(1,...Object.values(s.ctry)))}</div>`},
+us:async()=>{const u=await A('users');$('#mn').innerHTML=`<div class="c"><h3>${u.length} users</h3>${u.map(x=>`<div class="r"><div><b>${esc(x.name)}</b> ${x.banned?'<span class="tag">blocked</span>':''}<br><small>${x.type} · ${esc(x.loc||'?')} · ${x.n} chats · seen ${ago(x.last)} ago</small></div><div class="ab"><button data-a="view" data-id="${x.id}">Chats</button><button data-a="${x.banned?'unban':'ban'}" data-id="${x.id}">${x.banned?'Unblock':'Block'}</button><button data-a="clear" data-id="${x.id}">Clear chats</button><button data-a="delete" data-id="${x.id}">Delete</button></div></div>`).join('')||'<small>No users yet</small>'}</div>`},
+ch:async()=>{const c=await A('chats?'+new URLSearchParams(F));
+ $('#mn').innerHTML=`<div class="c"><div class="f"><input id="fq" placeholder="Search chats" value="${esc(F.q)}"><select id="fm"><option value="">All sections</option>${['chat','code','image','video'].map(m=>`<option ${F.mode===m?'selected':''}>${m}</option>`).join('')}</select>${F.uid?'<button id="fu">Clear user filter</button>':''}<button id="ej">Export JSON</button><button id="ec">Export CSV</button></div>${c.map(x=>`<div class="r"><div><b>${esc(x.name)}</b> <small>${x.mode} · ${esc(x.loc||'?')} · ${new Date(x.t).toLocaleString()}</small><br>Q: ${esc(x.q)}<br><small>A: ${esc((x.a||'').slice(0,600))}</small></div><button data-a="dc" data-id="${x.id}">🗑</button></div>`).join('')||'<small>No chats found</small>'}</div>`;
+ $('#fq').onchange=e=>{F.q=e.target.value;R.ch()};$('#fm').onchange=e=>{F.mode=e.target.value;R.ch()};if(F.uid)$('#fu').onclick=()=>{F.uid='';R.ch()};
+ $('#ej').onclick=async()=>dl('omnia-chats.json',JSON.stringify(await A('chats?all=1'),null,1));
+ $('#ec').onclick=async()=>dl('omnia-chats.csv','time,user,section,question,answer\n'+(await A('chats?all=1')).map(x=>[new Date(x.t).toISOString(),x.name,x.mode,x.q,x.a].map(v=>'"'+String(v||'').replace(/"/g,'""')+'"').join(',')).join('\n'))},
+ct:async()=>{const s=(await A('stats')).set;
+ $('#mn').innerHTML=`<div class="c"><h3>Announcement</h3><input id="s_ann" value="${esc(s.ann)}" placeholder="Shown at the top of the app"></div>
+ <div class="c"><h3>Ad banner</h3><input id="s_ad" value="${esc(s.ad)}" placeholder="Ad text"><input id="s_al" value="${esc(s.adLink)}" placeholder="Ad link (https://...)"><label><input type="checkbox" id="s_on" ${s.adOn?'checked':''}>Show ad</label></div>
+ <div class="c"><h3>Popup message to all users</h3><textarea id="s_pop" rows="2" placeholder="Message">${esc(s.popup)}</textarea><button id="rs">Show again to everyone</button></div>
+ <div class="c"><h3>Switches</h3><label><input type="checkbox" id="s_m" ${s.maint?'checked':''}>Maintenance mode (blocks all users)</label>${['chat','code','image','video'].map(m=>`<label><input type="checkbox" data-off="${m}" ${s.off[m]?'':'checked'}>${m} section enabled</label>`).join('')}</div>
+ <div class="c"><h3>Daily limit per user</h3><input id="s_d" type="number" min="1" value="${s.daily}"></div><button class="p" id="sv">Save all</button>`;
+ $('#sv').onclick=async()=>{const off={};$d.querySelectorAll('[data-off]').forEach(i=>off[i.dataset.off]=!i.checked);await A('set',{ann:$('#s_ann').value,ad:$('#s_ad').value,adLink:$('#s_al').value,adOn:$('#s_on').checked,popup:$('#s_pop').value,maint:$('#s_m').checked,off,daily:+$('#s_d').value||100});toast('Saved')};
+ $('#rs').onclick=async()=>{await A('set',{resend:1});toast('Popup will show again')}},
+sv:async()=>{const v=(await A('stats')).server;$('#mn').innerHTML=`<div class="c"><h3>Server</h3><div class="r"><span>Uptime</span><b>${(v.up/3600).toFixed(1)} h</b></div><div class="r"><span>Memory</span><b>${v.mem} MB</b></div></div><div class="c"><h3>API keys</h3>${Object.entries(v.keys).map(([k,b])=>`<div class="r"><span>${k}</span><b>${b?'✅ set':'❌ missing'}</b></div>`).join('')}</div>`}};
+$('#mn').onclick=async e=>{const b=e.target.closest('[data-a]');if(!b)return;const a=b.dataset.a,id=b.dataset.id;
+ if(a==='view'){F.uid=id;return go('ch')}
+ if(a==='dc'){await A('chat/delete',{id});return R.ch()}
+ if(['clear','delete'].includes(a)&&!confirm(a+' this user?'))return;
+ await A('user',{id,act:a});R.us()};
+$('#go').onclick=async()=>{try{T=(await A('login',{password:$('#pw').value})).token;sessionStorage.at=T;show(1)}catch(e){$('#le').textContent=e.message}};
+$('#pw').onkeydown=e=>e.key==='Enter'&&$('#go').click();
+$('#rf').onclick=()=>go(tab);$('#out').onclick=()=>{sessionStorage.removeItem('at');T='';show(0)};
+T?show(1):show(0);
+</script></body></html>
